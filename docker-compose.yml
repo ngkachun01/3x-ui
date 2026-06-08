@@ -26,7 +26,8 @@ services:
     tty: true
     ports:
       - "2053:2053"
-      - "2054:2054"      
+      - "2054:2054"
+      - "2055:2055"
     restart: unless-stopped
 
   # postgres:

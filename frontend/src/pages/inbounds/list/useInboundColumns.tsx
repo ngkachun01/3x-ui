@@ -159,7 +159,7 @@ export function useInboundColumns({
           if (!cc) return null;
           return (
             <>
-              <Tag className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>
+              <Tag className="client-count-tag" style={{ margin: 0, marginRight: 4, padding: '0 2px' }}>
                 <TeamOutlined /> {cc.clients}
               </Tag>
               {cc.active.length > 0 && (
@@ -171,7 +171,7 @@ export function useInboundColumns({
                     </div>
                   )}
                 >
-                  <Tag color="green" className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>{cc.active.length}</Tag>
+                  <Tag color="green" className="client-count-tag" style={{ margin: 0, marginRight: 4, padding: '0 2px' }}>{cc.active.length}</Tag>
                 </Popover>
               )}
               {cc.deactive.length > 0 && (
@@ -183,7 +183,7 @@ export function useInboundColumns({
                     </div>
                   )}
                 >
-                  <Tag className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>{cc.deactive.length}</Tag>
+                  <Tag className="client-count-tag" style={{ margin: 0, marginRight: 4, padding: '0 2px' }}>{cc.deactive.length}</Tag>
                 </Popover>
               )}
               {cc.depleted.length > 0 && (
@@ -195,7 +195,7 @@ export function useInboundColumns({
                     </div>
                   )}
                 >
-                  <Tag color="red" className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>{cc.depleted.length}</Tag>
+                  <Tag color="red" className="client-count-tag" style={{ margin: 0, marginRight: 4, padding: '0 2px' }}>{cc.depleted.length}</Tag>
                 </Popover>
               )}
               {cc.online.length > 0 && (

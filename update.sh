@@ -751,6 +751,8 @@ prompt_and_setup_ssl() {
 }
 
 config_after_update() {
+    local panel_needs_restart=0
+
     echo -e "${yellow}x-ui settings:${plain}"
     ${xui_folder}/x-ui setting -show true
     ${xui_folder}/x-ui migrate
@@ -798,6 +800,7 @@ config_after_update() {
         local config_webBasePath=$(gen_random_string 18)
         ${xui_folder}/x-ui setting -webBasePath "${config_webBasePath}"
         existing_webBasePath="${config_webBasePath}"
+        panel_needs_restart=1
         echo -e "${green}New WebBasePath: ${config_webBasePath}${plain}"
     fi
 
@@ -831,6 +834,11 @@ config_after_update() {
         echo -e "${green}═══════════════════════════════════════════${plain}"
         echo -e "${green}Access URL: https://${cert_domain}:${existing_port}/${existing_webBasePath}${plain}"
         echo -e "${green}═══════════════════════════════════════════${plain}"
+    fi
+
+    if [[ "$panel_needs_restart" -eq 1 ]]; then
+        echo -e "${yellow}Restarting panel to apply the new web base path...${plain}"
+        systemctl restart x-ui 2> /dev/null || rc-service x-ui restart 2> /dev/null
     fi
 }
 
@@ -890,6 +898,11 @@ update_x-ui() {
                 _fail "ERROR: x-ui systemd unit not installed."
             fi
         fi
+        # Kill any leftover mtg (MTProto) sidecars. x-ui runs them outside its own
+        # lifecycle, so on Linux a stale one can survive the stop and keep holding
+        # an inbound port with an outdated secret, silently breaking new clients.
+        # The new panel respawns a clean mtg per inbound on next start.
+        pkill -f 'mtg-linux-[^ ]* run ' > /dev/null 2>&1 || true
         echo -e "${green}Removing old x-ui version...${plain}"
         rm ${xui_folder} -f > /dev/null 2>&1
         rm ${xui_folder}/x-ui.service -f > /dev/null 2>&1

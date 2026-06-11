@@ -23,6 +23,7 @@ import { createDefaultInboundSettings } from '@/lib/xray/inbound-defaults';
 import { composeInboundTag, isAutoInboundTag, type InboundTagInput } from '@/lib/xray/inbound-tag';
 import {
   canEnableReality,
+  canEnableSniffing,
   canEnableStream,
   canEnableTls,
   isSS2022,
@@ -160,6 +161,16 @@ export default function InboundFormModal({
   const network = Form.useWatch(['streamSettings', 'network'], form) ?? '';
   const security = Form.useWatch(['streamSettings', 'security'], form) ?? 'none';
   const streamEnabled = canEnableStream({ protocol });
+  const sniffingSupported = canEnableSniffing({ protocol });
+  // Wireguard (always a UDP listener) and Tunnel (dokodemo-door) expose no
+  // user-selectable transport — their stream tab is just sockopt, which is all
+  // Tunnel's TProxy/redirect mode needs (sockopt.tproxy). Hysteria carries its
+  // own dedicated transport form. For all of these the RAW/mKCP/WS/... network
+  // picker and the per-network sub-forms are hidden.
+  const hasSelectableTransport =
+    protocol !== Protocols.HYSTERIA
+    && protocol !== Protocols.WIREGUARD
+    && protocol !== Protocols.TUNNEL;
 
   const wPort = Form.useWatch('port', form);
   const wListen = (Form.useWatch('listen', form) ?? '') as string;
@@ -370,9 +381,17 @@ export default function InboundFormModal({
             }],
           },
         });
+      } else if (next === Protocols.WIREGUARD || next === Protocols.TUNNEL) {
+        // Wireguard and Tunnel (dokodemo-door) have no user-selectable
+        // transport: wireguard is always a UDP listener, and tunnel only needs
+        // `sockopt.tproxy` for its TProxy/redirect mode. Drop the leftover
+        // network/transport slices so the stream tab doesn't render a TCP
+        // sub-form and the wire payload carries no dead tcpSettings — the
+        // sockopt section (with TProxy) stays available.
+        form.setFieldValue('streamSettings', { security: 'none' });
       } else {
         const current = form.getFieldValue('streamSettings') as { network?: string } | undefined;
-        if (current?.network === 'hysteria') {
+        if (current?.network === 'hysteria' || !current?.network) {
           form.setFieldValue('streamSettings', { network: 'tcp', security: 'none', tcpSettings: {} });
         }
       }
@@ -643,7 +662,7 @@ export default function InboundFormModal({
 
   const streamTab = (
     <>
-      {protocol !== Protocols.HYSTERIA && (
+      {hasSelectableTransport && (
         <Form.Item label={t('transmission')} name={['streamSettings', 'network']}>
           <Select
             style={{ width: '75%' }}
@@ -669,28 +688,41 @@ export default function InboundFormModal({
           HTTP server when probed. */}
       {protocol === Protocols.HYSTERIA && <HysteriaFields form={form} />}
 
-      {network === 'tcp' && <RawForm />}
+      {hasSelectableTransport && (
+        <>
+          {network === 'tcp' && <RawForm />}
 
-      {network === 'ws' && <WsForm />}
+          {network === 'ws' && <WsForm />}
 
-      {network === 'grpc' && <GrpcForm />}
+          {network === 'grpc' && <GrpcForm />}
 
-      {network === 'xhttp' && <XhttpForm form={form} />}
+          {network === 'xhttp' && <XhttpForm form={form} />}
 
-      {network === 'httpupgrade' && <HttpUpgradeForm />}
+          {network === 'httpupgrade' && <HttpUpgradeForm />}
 
-      {network === 'kcp' && <KcpForm />}
+          {network === 'kcp' && <KcpForm />}
+        </>
+      )}
 
-      <ExternalProxyForm toggleExternalProxy={toggleExternalProxy} />
+      {/* externalProxy only feeds client share links. Wireguard's per-peer
+          .conf fanout resolves its host elsewhere, and tunnel (dokodemo-door)
+          has no clients at all — the section is dead weight on both. */}
+      {protocol !== Protocols.WIREGUARD && protocol !== Protocols.TUNNEL && (
+        <ExternalProxyForm toggleExternalProxy={toggleExternalProxy} />
+      )}
 
       <SockoptForm toggleSockopt={toggleSockopt} />
 
-      <FinalMaskForm
-        name={['streamSettings', 'finalmask']}
-        network={network as string}
-        protocol={protocol}
-        form={form}
-      />
+      {/* Transport masks don't apply to tunnel (a transparent forwarder), so
+          its stream tab is just sockopt + TProxy. */}
+      {protocol !== Protocols.TUNNEL && (
+        <FinalMaskForm
+          name={['streamSettings', 'finalmask']}
+          network={network as string}
+          protocol={protocol}
+          form={form}
+        />
+      )}
     </>
   );
 
@@ -776,7 +808,7 @@ export default function InboundFormModal({
                   <div className="advanced-editor-meta">
                     {t('pages.inbounds.advanced.allHelp')}
                   </div>
-                  <AdvancedAllEditor form={form} streamEnabled={streamEnabled} />
+                  <AdvancedAllEditor form={form} streamEnabled={streamEnabled} sniffingEnabled={sniffingSupported} />
                 </>
               ),
             },
@@ -820,25 +852,27 @@ export default function InboundFormModal({
                 ),
               }]
               : []),
-            {
-              key: 'sniffing',
-              label: t('pages.inbounds.advanced.sniffing'),
-              children: (
-                <>
-                  <div className="advanced-editor-meta">
-                    {t('pages.inbounds.advanced.sniffingHelp')}{' '}
-                    <code>{'{ sniffing: { ... } }'}</code>.
-                  </div>
-                  <AdvancedSliceEditor
-                    form={form}
-                    path="sniffing"
-                    wrapKey="sniffing"
-                    minHeight="240px"
-                    maxHeight="420px"
-                  />
-                </>
-              ),
-            },
+            ...(sniffingSupported
+              ? [{
+                key: 'sniffing',
+                label: t('pages.inbounds.advanced.sniffing'),
+                children: (
+                  <>
+                    <div className="advanced-editor-meta">
+                      {t('pages.inbounds.advanced.sniffingHelp')}{' '}
+                      <code>{'{ sniffing: { ... } }'}</code>.
+                    </div>
+                    <AdvancedSliceEditor
+                      form={form}
+                      path="sniffing"
+                      wrapKey="sniffing"
+                      minHeight="240px"
+                      maxHeight="420px"
+                    />
+                  </>
+                ),
+              }]
+              : []),
           ]}
         />
       </div>
@@ -893,10 +927,16 @@ export default function InboundFormModal({
             ...(streamEnabled
               ? [
                 { key: 'stream', label: t('pages.inbounds.streamTab'), children: streamTab, forceRender: true },
-                { key: 'security', label: t('pages.inbounds.securityTab'), children: securityTab, forceRender: true },
+                // Wireguard and Tunnel can't do TLS/Reality (canEnableTls is false), so
+                // the security tab would only show a fully disabled radio.
+                ...(protocol !== Protocols.WIREGUARD && protocol !== Protocols.TUNNEL
+                  ? [{ key: 'security', label: t('pages.inbounds.securityTab'), children: securityTab, forceRender: true }]
+                  : []),
               ]
               : []),
-            { key: 'sniffing', label: t('pages.inbounds.sniffingTab'), children: sniffingTab, forceRender: true },
+            ...(sniffingSupported
+              ? [{ key: 'sniffing', label: t('pages.inbounds.sniffingTab'), children: sniffingTab, forceRender: true }]
+              : []),
             { key: 'advanced', label: t('pages.xray.advancedTemplate'), children: advancedTab, forceRender: true },
           ]} />
         </Form>

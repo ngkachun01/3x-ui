@@ -10,15 +10,12 @@ import {
   FloatButton,
   Layout,
   message,
-  Modal,
-  Popover,
   Radio,
   Result,
   Row,
   Space,
   Spin,
 } from 'antd';
-import { QuestionCircleOutlined } from '@ant-design/icons';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -29,6 +26,7 @@ import { JsonEditor } from '@/components/form';
 import { setMessageInstance } from '@/utils/messageBus';
 
 import { BasicsTab } from './basics';
+import { propagateOutboundTagRename } from './basics/helpers';
 import { RoutingTab } from './routing';
 import { OutboundsTab } from './outbounds';
 import { BalancersTab } from './balancers';
@@ -62,7 +60,6 @@ export default function XrayPage() {
     clientReverseTags,
     subscriptionOutbounds,
     subscriptionOutboundTags,
-    restartResult,
     outboundsTraffic,
     outboundTestStates,
     subscriptionTestStates,
@@ -74,10 +71,8 @@ export default function XrayPage() {
     testAllOutbounds,
     saveAll,
     resetToDefault,
-    restartXray,
   } = xs;
 
-  const [modal, modalContextHolder] = Modal.useModal();
   const [warpOpen, setWarpOpen] = useState(false);
   const [nordOpen, setNordOpen] = useState(false);
   const [advSettings, setAdvSettings] = useState<AdvKey>('xraySetting');
@@ -118,11 +113,8 @@ export default function XrayPage() {
     mutate((tt) => {
       if (!tt.outbounds || payload.index < 0) return;
       tt.outbounds[payload.index] = payload.outbound as never;
-      if (payload.oldTag && payload.newTag && payload.oldTag !== payload.newTag) {
-        const rules = tt.routing?.rules || [];
-        for (const r of rules) {
-          if (r?.outboundTag === payload.oldTag) r.outboundTag = payload.newTag;
-        }
+      if (payload.oldTag && payload.newTag) {
+        propagateOutboundTagRename(tt, payload.oldTag, payload.newTag);
       }
     });
   }
@@ -186,16 +178,6 @@ export default function XrayPage() {
           tt.routing.rules = parsed;
           break;
       }
-    });
-  }
-
-  function confirmRestart() {
-    modal.confirm({
-      title: t('pages.xray.restartConfirmTitle'),
-      content: t('pages.xray.restartConfirmContent'),
-      okText: t('pages.xray.restart'),
-      cancelText: t('cancel'),
-      onOk: () => restartXray(),
     });
   }
 
@@ -308,7 +290,6 @@ export default function XrayPage() {
   return (
     <ConfigProvider theme={antdThemeConfig}>
       {messageContextHolder}
-      {modalContextHolder}
       <Layout className={pageClass}>
         <AppSidebar />
 
@@ -334,18 +315,6 @@ export default function XrayPage() {
                             <Button type="primary" disabled={saveDisabled} onClick={onSaveAll}>
                               {t('pages.xray.save')}
                             </Button>
-                            <Button type="primary" danger disabled={!saveDisabled} onClick={confirmRestart}>
-                              {t('pages.xray.restart')}
-                            </Button>
-                            {restartResult && (
-                              <Popover
-                                placement="rightTop"
-                                title={t('pages.xray.restartOutputTitle')}
-                                content={<pre className="restart-result">{restartResult}</pre>}
-                              >
-                                <QuestionCircleOutlined className="restart-icon" />
-                              </Popover>
-                            )}
                           </Space>
                         </Col>
                         <Col xs={24} sm={10} className="header-info">

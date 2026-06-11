@@ -9,7 +9,7 @@ export class AllSetting {
   webBasePath = '/';
   sessionMaxAge = 360;
   trustedProxyCIDRs = '127.0.0.1/32,::1/128';
-  panelProxy = '';
+  panelOutbound = '';
   pageSize = 25;
   expireDiff = 0;
   trafficDiff = 0;
@@ -60,6 +60,7 @@ export class AllSetting {
   subJsonMux = '';
   subJsonRules = '';
   subJsonFinalMask = '';
+  subThemeDir = '';
 
   timeLocation = 'Local';
 
